@@ -166,6 +166,7 @@ pub fn get_table_data(
                     nullable: false,
                     max_length: None,
                     comment: None,
+                    domain_name: None,
                 },
             );
         }
@@ -195,6 +196,7 @@ impl QueryableByName<Sqlite> for ColumnInformation {
             !notnull,
             None,
             None,
+            None as Option<String>,
         ))
     }
 }

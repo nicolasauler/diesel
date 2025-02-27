@@ -10,6 +10,7 @@ pub struct ColumnInformation {
     pub nullable: bool,
     pub max_length: Option<u64>,
     pub comment: Option<String>,
+    pub domain_name: Option<String>,
 }
 
 #[derive(Debug, PartialEq, Clone, Eq)]
@@ -17,6 +18,7 @@ pub struct ColumnType {
     pub schema: Option<String>,
     pub rust_name: String,
     pub sql_name: String,
+    pub domain_name: Option<String>,
     pub is_array: bool,
     pub is_nullable: bool,
     pub is_unsigned: bool,
@@ -48,6 +50,7 @@ impl ColumnType {
             schema: None,
             rust_name: last.ident.to_string(),
             sql_name: String::new(),
+            domain_name: None,
             is_array: last.ident == "Array",
             is_nullable: last.ident == "Nullable",
             is_unsigned: last.ident == "Unsigned",
@@ -115,17 +118,19 @@ pub struct ColumnDefinition {
 }
 
 impl ColumnInformation {
-    pub fn new<T, U>(
+    pub fn new<T, U, Q>(
         column_name: T,
         type_name: U,
         type_schema: Option<String>,
         nullable: bool,
         max_length: Option<u64>,
         comment: Option<String>,
+        domain_name: Option<Q>,
     ) -> Self
     where
         T: Into<String>,
         U: Into<String>,
+        Q: Into<String>,
     {
         ColumnInformation {
             column_name: column_name.into(),
@@ -134,6 +139,7 @@ impl ColumnInformation {
             nullable,
             max_length,
             comment,
+            domain_name: domain_name.map(|n| n.into()),
         }
     }
 }

@@ -41,6 +41,7 @@ pub fn get_table_data(
             character_maximum_length,
             // MySQL comments are not nullable and are empty strings if not set
             null_if_text(column_comment, ""),
+            diesel::dsl::sql::<diesel::sql_types::Nullable<diesel::sql_types::Text>>("NULL"),
         ))
         .filter(table_name.eq(&table.sql_name))
         .filter(table_schema.eq(schema_name));
@@ -72,6 +73,7 @@ where
         String,
         Option<u64>,
         Option<String>,
+        Option<String>,
     ): FromStaticSqlRow<ST, Mysql>,
 {
     type Row = (
@@ -80,6 +82,7 @@ where
         Option<String>,
         String,
         Option<u64>,
+        Option<String>,
         Option<String>,
     );
 
@@ -91,6 +94,7 @@ where
             row.3 == "YES",
             row.4,
             row.5,
+            None as Option<String>,
         ))
     }
 }
@@ -376,9 +380,10 @@ mod test {
             false,
             Some(255),
             Some("column comment".to_string()),
+            None,
         );
         let id_without_comment =
-            ColumnInformation::new("id", "varchar(255)", None, false, Some(255), None);
+            ColumnInformation::new("id", "varchar(255)", None, false, Some(255), None, None);
         assert_eq!(
             Ok(vec![id_with_comment]),
             get_table_data(&mut connection, &table_1, &ColumnSorting::OrdinalPosition)

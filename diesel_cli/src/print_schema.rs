@@ -2,6 +2,7 @@ use crate::config;
 use crate::database::{Backend, InferConnection};
 use crate::infer_schema_internals::*;
 
+use heck::ToUpperCamelCase;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fmt::{self, Display, Formatter, Write};
@@ -193,39 +194,59 @@ pub fn output_schema(
                 .map(|t| {
                     t.column_data
                         .iter()
-                        .map(|c| {
-                            Some(&c.ty)
-                                .filter(|ty| !diesel_provided_types.contains(ty.rust_name.as_str()))
-                                // Skip types that are that match the regexes in the configuration
-                                .filter(|ty| {
-                                    !config
-                                        .except_custom_type_definitions
-                                        .iter()
-                                        .any(|rx| rx.is_match(ty.rust_name.as_str()))
-                                })
-                                .map(|ty| match backend {
-                                    #[cfg(feature = "postgres")]
-                                    Backend::Pg => ty.clone(),
-                                    #[cfg(feature = "sqlite")]
-                                    Backend::Sqlite => ty.clone(),
-                                    #[cfg(feature = "mysql")]
-                                    Backend::Mysql => {
-                                        // For MySQL we generate custom types for unknown types that
-                                        // are dedicated to the column
-                                        use heck::ToUpperCamelCase;
+                        .filter_map(|c| {
+                            let include_regular_type = !diesel_provided_types
+                                .contains(c.ty.rust_name.as_str())
+                                && !config
+                                    .except_custom_type_definitions
+                                    .iter()
+                                    .any(|rx| rx.is_match(c.ty.rust_name.as_str()));
 
-                                        ColumnType {
-                                            rust_name: format!(
-                                                "{} {} {}",
-                                                &t.name.rust_name, &c.rust_name, &ty.rust_name
-                                            )
-                                            .to_upper_camel_case(),
-                                            ..ty.clone()
-                                        }
-                                    }
-                                })
+                            #[cfg(feature = "postgres")]
+                            let include_domain_type = backend == Backend::Pg
+                                && c.ty.domain_name.as_ref().map_or(false, |domain| {
+                                    let domain_rustname = domain.to_upper_camel_case();
+
+                                    !diesel_provided_types.contains(domain_rustname.as_str())
+                                        && !config
+                                            .except_custom_type_definitions
+                                            .iter()
+                                            .any(|rx| rx.is_match(domain_rustname.as_str()))
+                                });
+
+                            #[cfg(not(feature = "postgres"))]
+                            let include_domain_type = false;
+
+                            if include_regular_type || include_domain_type {
+                                Some(&c.ty)
+                            } else {
+                                None
+                            }
                         })
-                        .collect::<Vec<Option<ColumnType>>>()
+                        .map(|ty| {
+                            match backend {
+                                #[cfg(feature = "postgres")]
+                                Backend::Pg => ty.clone(),
+                                #[cfg(feature = "sqlite")]
+                                Backend::Sqlite => ty.clone(),
+                                #[cfg(feature = "mysql")]
+                                Backend::Mysql => {
+                                    // For MySQL we generate custom types for unknown types that
+                                    // are dedicated to the column
+                                    use heck::ToUpperCamelCase;
+
+                                    ColumnType {
+                                        rust_name: format!(
+                                            "{} {} {}",
+                                            &t.name.rust_name, &c.rust_name, &ty.rust_name
+                                        )
+                                        .to_upper_camel_case(),
+                                        ..ty.clone()
+                                    }
+                                }
+                            }
+                        })
+                        .collect::<Vec<_>>()
                 })
                 .collect::<Vec<_>>(),
         )

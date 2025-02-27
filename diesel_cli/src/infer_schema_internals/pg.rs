@@ -66,6 +66,7 @@ pub fn determine_column_type(
         }),
         sql_name: tpe.to_string(),
         rust_name: tpe.to_upper_camel_case(),
+        domain_name: attr.domain_name.map(|d| d.to_upper_camel_case()),
         is_array,
         is_nullable: attr.nullable,
         is_unsigned: false,
@@ -106,9 +107,11 @@ pub fn get_table_data(
             __is_nullable,
             character_maximum_length,
             col_description(regclass(table), ordinal_position),
+            domain_name,
         ))
         .filter(table_name.eq(&table.sql_name))
         .filter(table_schema.eq(schema_name));
+
     match column_sorting {
         ColumnSorting::OrdinalPosition => query.order(ordinal_position).load(conn),
         ColumnSorting::Name => query.order(column_name).load(conn),
@@ -124,6 +127,7 @@ where
         String,
         Option<i32>,
         Option<String>,
+        Option<String>,
     ): FromStaticSqlRow<ST, Pg>,
 {
     type Row = (
@@ -132,6 +136,7 @@ where
         Option<String>,
         String,
         Option<i32>,
+        Option<String>,
         Option<String>,
     );
 
@@ -149,6 +154,7 @@ where
                 })
                 .transpose()?,
             row.5,
+            row.6,
         ))
     }
 }
@@ -174,6 +180,7 @@ mod information_schema {
             ordinal_position -> BigInt,
             udt_name -> VarChar,
             udt_schema -> VarChar,
+            domain_name -> Nullable<VarChar>,
         }
     }
 }
@@ -275,6 +282,7 @@ mod test {
             false,
             None,
             Some("column comment".to_string()),
+            None,
         );
         let text_col = ColumnInformation::new(
             "text_col",
@@ -283,11 +291,19 @@ mod test {
             true,
             Some(128),
             None,
+            None,
         );
-        let not_null =
-            ColumnInformation::new("not_null", "text", pg_catalog.clone(), false, None, None);
+        let not_null = ColumnInformation::new(
+            "not_null",
+            "text",
+            pg_catalog.clone(),
+            false,
+            None,
+            None,
+            None,
+        );
         let array_col =
-            ColumnInformation::new("array_col", "_varchar", pg_catalog, false, None, None);
+            ColumnInformation::new("array_col", "_varchar", pg_catalog, false, None, None, None);
         assert_eq!(
             Ok(vec![id, text_col, not_null]),
             get_table_data(&mut connection, &table_1, &ColumnSorting::OrdinalPosition)
